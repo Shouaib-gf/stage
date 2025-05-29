@@ -11,7 +11,7 @@ const swaggerDefinition = {
     },
     servers: [
         {
-            url: 'http://localhost:80',
+            url: 'https://smartbus.emkatech.tn',
             description: 'Serveur local'
         }
     ],

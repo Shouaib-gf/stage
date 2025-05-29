@@ -66,10 +66,6 @@ app.use('/api/drivers', require('./routes/driverRoutes'));
 app.use('/api/students', require('./routes/studentRoutes'));
 app.use('/api/messages', require('./routes/messageRoutes'));
 
-// Health check route
-app.get('/', (req, res) => {
-  res.send('🚀 API en cours d\'exécution...');
-});
 
 // Serve frontend build
 app.use(express.static(path.join(__dirname, "build")));
