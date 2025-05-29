@@ -8,7 +8,7 @@ const path = require('path');
 // Load environment variables
 dotenv.config({ path: './.env' });
 
-// DB and Admin
+// DB 
 const connectDB = require('./config/db');
 const createDefaultSuperAdmin = require('./config/defaultAdmin');
 
