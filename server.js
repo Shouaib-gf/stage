@@ -36,7 +36,7 @@ mongoose.connect("mongodb://mongo:27017/iptsdb", {
   createDefaultSuperAdmin();
 
   // Start server
-  const PORT = process.env.PORT || 80;
+  const PORT =  80;
   app.listen(PORT, () => {
     console.log(`🚀 Server started at port ${PORT}`);
   });
