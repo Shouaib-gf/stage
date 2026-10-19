@@ -1,4 +1,4 @@
-name: SmartBus CI
+name: SmartBus CI-CD
 
 on:
   push:
@@ -10,7 +10,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  validate:
+  validate-build:
+    # Build on pushes and pull requests, but deploy only on pushes to devops.
     runs-on: self-hosted
     steps:
       - name: Checkout repository
@@ -29,3 +30,29 @@ jobs:
 
       - name: Build Docker image
         run: docker build -t smartbusbackend:${{ github.sha }} .
+
+      - name: Deploy to local Compose environment
+        if: github.event_name != 'pull_request'
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -eu
+          cd /home/shouaib/smartBusBackend
+
+          docker image inspect "smartbusbackend:${IMAGE_TAG}" >/dev/null
+
+          SMARTBUS_IMAGE="smartbusbackend:${IMAGE_TAG}" \
+            docker compose up -d --no-deps --no-build web
+
+          for attempt in $(seq 1 12); do
+            if curl --fail --silent --show-error http://127.0.0.1/ >/dev/null &&
+               curl --fail --silent --show-error http://127.0.0.1/api-docs/ >/dev/null; then
+              echo "Deployment successful: homepage and API docs respond."
+              exit 0
+            fi
+            sleep 5
+          done
+
+          echo "Deployment health check failed."
+          docker logs --tail 80 web-1
+          exit 1
