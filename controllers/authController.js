@@ -26,10 +26,10 @@ const { getJwtSecret } = require('../config/security');
  *             properties:
  *               email:
  *                 type: string
- *                 example: service.info@emkamed.tn
+ *                 example: admin@example.com
  *               password:
  *                 type: string
- *                 example: HbB6yq+R+U
+ *                 example: ReplaceWithYourPassword
  *     responses:
  *       200:
  *         description: Successful authentication, returns user info and token.

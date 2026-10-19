@@ -65,6 +65,7 @@ The workflow is published and has completed successfully on the VM runner. A rol
 
 - `.env`, TLS keys, backups, data, and logs are excluded from source control and Docker build context.
 - The Super Admin JWT secret comes from the VM `.env`; changing it invalidates existing login tokens.
+- The existing React bundle calls the SmartBus API on this VM; production browser logs do not emit login credentials or response tokens.
 - Vehicle records and stop mutations require JWT authentication and administrative roles.
 - Nginx applies TLS 1.2/1.3, HSTS, security headers, and login rate limiting.
 - The VM has 3.3 GiB RAM. Elasticsearch, Logstash, and Kibana use explicit memory limits and a seven-day index retention policy; host Docker logs are rotated at 10 MB x 3 per container.

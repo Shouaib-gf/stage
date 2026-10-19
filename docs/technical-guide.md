@@ -2,7 +2,7 @@
 
 ## Phase 4 - containerization, CI/CD, reverse proxy, and security
 
-- The existing Express service and bundled React frontend run in the `web` container. MongoDB remains on its existing authenticated persistent volume.
+- The existing Express service and bundled React frontend run in the `web` container. The bundle now calls the VM's HTTPS API and suppresses browser `console.log` output so authentication and user data are not written to developer consoles. MongoDB remains on its existing authenticated persistent volume.
 - GitHub Actions validates pushes and pull requests with `npm ci`, the Node test suite, ESLint, a full dependency audit, and a Docker build. Pushes to `devops` deploy only `web` from the self-hosted VM runner. Health checks verify HTTPS readiness, homepage, and Swagger; the workflow restores the previous immutable image on a failed check.
 - Nginx is the only externally published application service. It terminates TLS, redirects HTTP, supports Socket.IO upgrades, rate-limits authentication, and applies security headers. Grafana, Prometheus, Kibana, cAdvisor, node-exporter, Elasticsearch, and MongoDB have no public Docker port.
 - The lab VM uses a local CA because its private IP cannot obtain a public ACME certificate. The CA certificate is distributed at `docs/tls/SmartBus-Local-CA.crt`; the CA private key remains on the VM outside the Nginx mounts. Regenerate the server certificate if the VM IP changes.
