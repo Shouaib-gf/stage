@@ -72,4 +72,4 @@ The workflow is published and has completed successfully on the VM runner. A rol
 - MongoDB is authenticated, has no host-published port, and uses its existing persistent volume. Never run `docker compose down -v` on the VM.
 - Kubernetes/K3s is listed as an optional technology in the supplied requirements; this single-host Compose installation remains the deployed architecture.
 
-See [the technical operations guide](docs/technical-guide.md) and [the user guide](docs/user-guide.md).
+See [the technical operations guide](docs/technical-guide.md), [the user guide](docs/user-guide.md), and [the internship report](docs/rapport-de-stage-devops.md).

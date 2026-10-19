@@ -1,68 +1,66 @@
-# Dossier de réalisation DevOps — SmartBus
+# Rapport de stage DevOps — SmartBus
 
-**Date des vérifications :** 19 octobre 2026
-**Périmètre :** sections 4 à 8 du *Cahier des Charges* (conteneurisation/CI-CD, reverse proxy et sécurité, supervision, livrables et exploitation). Le cahier des charges rend Kubernetes optionnel; le contexte d'origine du dépôt n'est pas un cluster Kubernetes.
+**Périmètre :** phases 4 à 8 du cahier des charges SmartBus
+**Environnement :** VM Ubuntu, Docker Compose, dépôt GitHub `Shouaib-gf/stage`, branche `devops`
+**État de validation :** 19 octobre 2026
 
-## Environnement et état initial
+## 1. Périmètre et architecture existante
 
-Le dépôt existant a été repris depuis la branche `devops`; le déploiement est une application Express qui sert aussi le build React existant, avec MongoDB, Nginx, Prometheus, Grafana, cAdvisor et node-exporter. Le code du front React n'est pas séparé dans ce dépôt. La VM Ubuntu est joignable en SSH sous `/home/shouaib/smartBusBackend`.
+L’intervention poursuit l’application SmartBus fournie : une API Express qui sert également le build React existant, une base MongoDB, la documentation Swagger et une configuration Docker Compose. Aucun projet d’exemple n’a été créé. Les sources React autonomes et le code embarqué Raspberry Pi/OpenCV/Python ne faisaient pas partie du dépôt reçu.
 
-Avant l'intervention, la page SmartBus et Swagger répondaient. `/health` répondait par l'HTML du front, ce qui ne vérifiait pas l'état du backend. Le login Super Admin échouait avec `Command find requires authentication`; la base contenait déjà un compte Super Admin. Nginx renvoyait 502 parce que son amont résolvait vers l'ancienne adresse IP du conteneur `web`. Prometheus scrappait trois cibles système et n'avait ni cible backend ni règle d'alerte.
+La VM héberge l’application et les services de supervision. Nginx est le point d’entrée HTTPS; MongoDB garde son volume persistant existant. Les secrets, les données MongoDB et les sauvegardes restent sur la VM et ne sont pas inclus dans le dépôt Git.
 
-## Réalisation et validation
+## 2. Phase 4 — CI/CD, reverse proxy et sécurité
 
-| Élément | Réalisation | Validation |
-|---|---|---|
-| Image backend | Image `smartbusbackend:codex-20261019-node22`, Node.js 22, utilisateur non privilégié et healthcheck JSON | Construction Docker réussie sur la VM; build context réduit à 9,5 MB et exclut `.env`, Git, tests et données non utilisées par l'application. |
-| Readiness | `/health` renvoie un statut JSON qui exige la connexion MongoDB | HTTP 200, `status=ok`, `database=connected`; le conteneur est `healthy`. |
-| Super Admin | Connexion MongoDB terminée avant la recherche/création idempotente du Super Admin; initialisation attendue avant l'ouverture du port | Login Super Admin HTTP 200; une route protégée a répondu HTTP 200 avec le JWT émis. Le compte existant et la base n'ont pas été remplacés. |
-| JWT | Remplacement de la clé codée en dur par `JWT_SECRET`; une clé a été générée localement sur la VM puis passée au seul service `web` | Le secret n'a pas été affiché. Les sessions JWT existantes doivent se reconnecter après cette rotation. |
-| Déploiement | Remplacement du seul service Compose `web` avec `--no-deps --no-build` | Image précédente conservée et image candidate présente. MongoDB et les services de monitoring n'ont pas été redémarrés. |
-| Nginx | Résolution dynamique du nom de service Docker `web`; entêtes de sécurité et limitation du débit d'authentification dans la configuration préparée | `nginx -t` réussi, rechargement gracieux effectué; application, `/health` et Swagger répondent HTTP 200 via le port 8081. |
-| Prometheus | Cible `smartbus-backend` ajoutée; règles d'indisponibilité backend, CPU hôte et espace disque ajoutées et montées de façon persistante par Compose | `promtool check config` et `promtool check rules` réussis; rechargement SIGHUP sans redémarrage. Les quatre cibles sont `UP`; les trois alertes sont `INACTIVE` pendant la vérification. |
-| Tests | Tests unitaires de readiness, métriques, secret JWT, login, ordre de démarrage et initialisation Super Admin | `npm test` : 11 tests réussis, 0 échec; vérifications de syntaxe Node réussies. |
-| Sauvegardes | Copie protégée des fichiers VM modifiés et du `.env` avant intervention | `/home/shouaib/smartbus-backups/codex-20261019-174000`; les anciennes copies `docker-compose.yml.backup` et `docker-compose.yml.pre-cd-*` restent intactes. |
+Le workflow GitHub Actions valide les changements sur un runner GitHub : installation reproductible, tests, analyse ESLint, audit npm complet et audit de production, puis construction de l’image Docker. Sur un push de la branche `devops`, le runner de la VM construit une image étiquetée par commit et remplace uniquement le service `web`. Il vérifie l’API, l’accueil et Swagger par HTTPS. Si un contrôle échoue, il restaure l’image précédente; aucun essai artificiel de rollback n’a été déclenché sur le service réel.
 
-### Captures de l'environnement après intervention
+Le [run CI/CD final](https://github.com/Shouaib-gf/stage/actions/runs/39293952446) a réussi : validation et déploiement terminés en 1 min 3 s. L’image déployée passe son healthcheck Docker. Le workflow conserve MongoDB et les services de supervision pendant un déploiement backend.
 
-**Figure 1 — Application SmartBus existante.**
+Nginx redirige HTTP vers HTTPS, applique TLS 1.2/1.3, HSTS, des en-têtes de sécurité et une limitation des tentatives de connexion. Un certificat d’autorité locale est utilisé pour l’adresse privée de la VM; il est approuvé dans le magasin de certificats utilisateur Windows. Il faudra le renouveler si l’adresse IP change. UFW est actif : entrées refusées par défaut, SSH autorisé depuis le sous-réseau LAN et ports 80/443 ouverts.
 
-![Application SmartBus](captures/01-application.png)
+Le JWT est signé avec le secret du fichier `.env` privé de la VM. MongoDB exige une authentification et n’a pas de port hôte publié. Les mutations de véhicules et d’arrêts sont protégées par JWT et par les rôles d’administration. Le build React existant appelle désormais l’API de cette VM; les journaux de navigateur ne consignent plus les identifiants ni les réponses contenant des jetons. L’ancienne route `useragences` attendue par l’interface a été conservée avec authentification et contrôle d’accès.
 
-**Figure 2 — Readiness HTTP JSON, base MongoDB connectée.**
+## 3. Phase 5 — monitoring et observabilité
 
-![Readiness backend](captures/02-health-json.png)
+Prometheus collecte quatre cibles, toutes `UP` lors de la vérification : Prometheus, node-exporter, cAdvisor et le backend SmartBus. Six règles d’alerte sont chargées : disponibilité du backend, CPU, mémoire disponible, espace disque, node-exporter et cAdvisor.
 
-**Figure 3 — Documentation Swagger de l'API.**
+Grafana est servi sous `/grafana/`, conserve son authentification et provisionne le tableau de bord SmartBus Overview. Il contient les panneaux système (CPU, mémoire, disque et réseau), latence HTTP, disponibilité, alertes et séries métier.
 
-![Swagger](captures/03-swagger-api.png)
+Le backend écrit des événements techniques JSON limités à l’horodatage, au niveau, au service et au code d’événement. Logstash les transmet à Elasticsearch; Kibana est accessible par HTTPS avec authentification HTTP Basic. Une règle ILM supprime les index après sept jours. Elasticsearch n’a pas d’authentification dans ce déploiement de laboratoire : il reste sur le réseau Docker interne, sans port hôte publié; l’accès navigateur à Kibana est protégé par Nginx.
 
-**Figure 4 — Cibles Prometheus, incluant le backend et les trois composants d'infrastructure.**
+La VM dispose de 3,3 Gio de RAM et de 35 Go de disque. Après démarrage d’ELK, environ 4,2 Go de disque restent libres; il faut surveiller la capacité avant d’augmenter l’ingestion. Les limites mémoire des conteneurs, la rotation des journaux Docker et la rétention de sept jours bornent l’usage actuel.
 
-![Cibles Prometheus](captures/04-prometheus-targets.png)
+Les métriques « bus connectés » et « élèves détectés » sont en place, mais les composants Raspberry Pi/OpenCV qui les alimenteraient n’ont pas été fournis. Elles restent donc à zéro jusqu’à l’intégration de véritables événements télémétriques.
 
-**Figure 5 — Règles d'alerte Prometheus chargées et inactives sur l'état sain.**
+## 4. Phase 6 — livrables
 
-![Règles Prometheus](captures/05-prometheus-alerts.png)
+Le dépôt documente l’application existante, le démarrage Compose, les contrôles d’exploitation, la CI/CD et le rollback. Il contient aussi les tests automatisés, la configuration TLS publique de l’autorité locale, les règles Prometheus, le tableau Grafana, le pipeline Logstash, le guide utilisateur, le guide technique et ce rapport. Aucune nouvelle capture d’écran n’est incluse.
 
-**Figure 6 — Écran Grafana. L'authentification n'a pas été tentée et aucun tableau de bord live n'a été validé.**
+## 5. Phase 7 — technologies et limites de périmètre
 
-![Accès Grafana](captures/06-grafana-login.png)
+L’environnement installé utilise GitHub Actions, Git, Docker Compose, Nginx, Node.js, Express, MongoDB, Prometheus, Grafana, Elasticsearch, Logstash et Kibana. Kubernetes/K3s n’a pas été déployé sur cette VM mono-hôte. Il n’était pas nécessaire à l’architecture Compose retenue. Le code Raspberry Pi 4, OpenCV/Python et les sources React séparées ne figuraient pas dans le dépôt reçu.
 
-**Figure 7 — Endpoint readiness accessible à travers le reverse proxy Nginx.**
+## 6. Phase 8 — résultats d’acceptation
 
-![Proxy Nginx](captures/07-nginx-proxy-health.png)
+| Contrôle | Résultat observé |
+|---|---|
+| Tests Node.js | 16 réussis, 0 échec |
+| ESLint | réussi, aucune erreur |
+| Audit npm | 0 vulnérabilité signalée |
+| CI/CD GitHub Actions | validation et déploiement réussis, run #9 |
+| Backend par HTTPS | `/health` HTTP 200, MongoDB `connected`; conteneur `healthy` |
+| Application et Swagger | HTTP 200 |
+| Authentification des routes métier | `/useragences` sans JWT répond HTTP 401 JSON; endpoint de session répond comme API Express |
+| Prometheus | 4/4 cibles `UP`; 6 règles chargées; santé HTTPS HTTP 200 |
+| Grafana | API HTTPS HTTP 200; tableau SmartBus Overview provisionné |
+| ELK | cluster Elasticsearch `green`, Kibana HTTPS HTTP 200; index `smartbus-app-*` reçoit les événements de démarrage |
+| Réseau | UFW actif; seuls Nginx 80/443 sont exposés aux clients; Grafana et Prometheus sont liés à localhost; MongoDB, Elasticsearch, cAdvisor et node-exporter ne publient pas de port hôte |
+| Données et secrets | volume MongoDB, fichier `.env` et sauvegardes VM conservés; aucun secret ajouté au dépôt |
 
-## CI/CD et limites restantes
+La correction de l’initialisation Super Admin attend la connexion MongoDB avant la recherche ou la création idempotente; le compte existant est conservé. La connexion Super Admin et une route protégée avaient été validées lors de l’intervention précédente, et les tests présents couvrent l’émission du JWT, les erreurs de mot de passe et l’ordre d’initialisation.
 
-Le workflow local sépare la validation sur runner GitHub-hosted du déploiement sur runner self-hosted. Il exécute les tests, la vérification syntaxique, le build, puis remplace seulement `web`, vérifie le JSON de readiness, l'accueil, Swagger et les mêmes routes via Nginx, et restaure l'image antérieure si les contrôles échouent. Le processus du runner self-hosted VM était actif. Le workflow a ?t? publi? sur la branche `devops` dans le commit `8639fa4`. L?ex?cution GitHub Actions #6 a r?ussi : validation 36 s, d?ploiement backend 52 s, dur?e totale 1 min 34 s. Les contr?les de sant? du pipeline ont r?ussi; aucun rollback n?a ?t? d?clench?. Les avertissements GitHub signalent la migration des actions vers Node.js 24 et de `ubuntu-latest` vers Ubuntu 26.
+## 7. Exploitation
 
-Grafana est joignable mais reste protégé par son écran de connexion. La configuration de dashboard est préparée dans le clone local, mais n'est pas provisionnée sur la VM. Aucun test d'alerte artificiel n'a été lancé contre le service live. TLS/certificat et ELK ne sont pas déployés; la VM n'a qu'environ 3,3 GiB de RAM et 11 GiB de disque libre au relevé, ce qui ne permet pas d'ajouter prudemment une stack ELK sans plan de ressources. Le serveur demeure en HTTP. Kubernetes n'est pas requis par le cahier des charges fourni.
+Le certificat public de l’autorité locale à importer dans le navigateur se trouve dans `docs/tls/SmartBus-Local-CA.crt`. Le fichier `.env` privé sur la VM contient les accès d’exploitation Grafana/Kibana et les variables d’application. Ne pas le copier dans Git. Les sauvegardes datées et les volumes Docker doivent être conservés; ne jamais utiliser `docker compose down -v` sur la VM.
 
-Le build npm signale 52 vulnérabilités dans les dépendances existantes (1 faible, 31 modérées, 15 élevées, 5 critiques). Les dépendances legacy doivent être mises à jour avec une validation de compatibilité séparée; aucun `npm audit fix --force` n'a été appliqué.
-
-## Livrables locaux
-
-- Code, tests, Dockerfile, `.dockerignore`, workflow, configuration de monitoring et documentation dans le dépôt local `smartBusBackend`.
-- Captures PNG sous `docs/captures/`.
-- Le fichier `SMARTBUS_COMPLETE_PROJECT_FOR_CODEX.md` cité dans la demande n'a pas été trouvé dans les emplacements vérifiés. Le périmètre a donc été établi à partir du handoff disponible et du PDF fourni.
+Les procédures de maintenance sont décrites dans [le guide technique](technical-guide.md) et les accès fonctionnels dans [le guide utilisateur](user-guide.md).
