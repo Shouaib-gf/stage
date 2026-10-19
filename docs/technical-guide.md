@@ -13,7 +13,7 @@
 
 Prometheus scrapes the backend, node-exporter, cAdvisor, and itself. Alert rules cover backend readiness, CPU, available memory, root disk space, node-exporter, and cAdvisor. Grafana provisions the Prometheus data source and SmartBus Overview dashboard from source-controlled files. The dashboard contains CPU, memory, disk, network, vehicle/bus metric, student-detection metric, response latency, service availability, and alert panels.
 
-ELK runs as a memory-limited single-node stack. The backend writes only safe lifecycle event records (timestamp, level, service, event code) to a rotating log file; Logstash reads that file and indexes daily in Elasticsearch. An ILM policy deletes log indices after seven days. Kibana and Prometheus use HTTP Basic authentication at Nginx; Grafana retains its own account login. No log entry should contain credentials, request bodies, JWT values, or personal records.
+ELK runs as a memory-limited single-node stack. The index template sets zero replicas so the one-node cluster remains green, including after logs are indexed. The backend writes only safe lifecycle event records (timestamp, level, service, event code) to a rotating log file; Logstash reads that file and indexes daily in Elasticsearch. An ILM policy deletes log indices after seven days. Kibana and Prometheus use HTTP Basic authentication at Nginx; Grafana retains its own account login. No log entry should contain credentials, request bodies, JWT values, or personal records.
 
 The bus and student counters require real telemetry events. The repository contains no Raspberry Pi/OpenCV source or detection event endpoint, so their dashboard series remain zero until that upstream integration exists.
 

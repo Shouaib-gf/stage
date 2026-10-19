@@ -144,7 +144,10 @@ services:
       - |
         until curl --fail --silent http://elasticsearch:9200/ >/dev/null; do sleep 3; done
         curl --fail --silent --show-error -X PUT http://elasticsearch:9200/_ilm/policy/smartbus-logs-7d -H 'Content-Type: application/json' -d '{"policy":{"phases":{"hot":{"actions":{}},"delete":{"min_age":"7d","actions":{"delete":{}}}}}}'
-        curl --fail --silent --show-error -X PUT http://elasticsearch:9200/_index_template/smartbus-app -H 'Content-Type: application/json' -d '{"index_patterns":["smartbus-app-*"],"template":{"settings":{"index.lifecycle.name":"smartbus-logs-7d"}}}'
+        curl --fail --silent --show-error -X PUT http://elasticsearch:9200/_index_template/smartbus-app -H 'Content-Type: application/json' -d '{"index_patterns":["smartbus-app-*"],"template":{"settings":{"number_of_replicas":0,"index.lifecycle.name":"smartbus-logs-7d"}}}'
+        if curl --fail --silent http://elasticsearch:9200/_cat/indices/smartbus-app-* | grep -q smartbus-app-; then
+          curl --fail --silent --show-error -X PUT http://elasticsearch:9200/smartbus-app-*/_settings -H 'Content-Type: application/json' -d '{"index":{"number_of_replicas":0}}'
+        fi
     networks:
       - elk-internal
 

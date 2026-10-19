@@ -26,7 +26,7 @@ Prometheus collecte quatre cibles, toutes `UP` lors de la vérification : Promet
 
 Grafana est servi sous `/grafana/`, conserve son authentification et provisionne le tableau de bord SmartBus Overview. Il contient les panneaux système (CPU, mémoire, disque et réseau), latence HTTP, disponibilité, alertes et séries métier.
 
-Le backend écrit des événements techniques JSON limités à l’horodatage, au niveau, au service et au code d’événement. Logstash les transmet à Elasticsearch; Kibana est accessible par HTTPS avec authentification HTTP Basic. Une règle ILM supprime les index après sept jours. Elasticsearch n’a pas d’authentification dans ce déploiement de laboratoire : il reste sur le réseau Docker interne, sans port hôte publié; l’accès navigateur à Kibana est protégé par Nginx.
+Le backend écrit des événements techniques JSON limités à l’horodatage, au niveau, au service et au code d’événement. Logstash les transmet à Elasticsearch; Kibana est accessible par HTTPS avec authentification HTTP Basic. Une règle ILM supprime les index après sept jours. Le modèle fixe les répliques à zéro pour le cluster à un seul nœud. Elasticsearch n’a pas d’authentification dans ce déploiement de laboratoire : il reste sur le réseau Docker interne, sans port hôte publié; l’accès navigateur à Kibana est protégé par Nginx.
 
 La VM dispose de 3,3 Gio de RAM et de 35 Go de disque. Après démarrage d’ELK, environ 4,2 Go de disque restent libres; il faut surveiller la capacité avant d’augmenter l’ingestion. Les limites mémoire des conteneurs, la rotation des journaux Docker et la rétention de sept jours bornent l’usage actuel.
 
