@@ -38,7 +38,7 @@ Le dépôt documente l’application existante, le démarrage Compose, les contr
 
 ## 5. Phase 7 — technologies et limites de périmètre
 
-L’environnement installé utilise GitHub Actions, Git, Docker Compose, Nginx, Node.js, Express, MongoDB, Prometheus, Grafana, Elasticsearch, Logstash et Kibana. Kubernetes/K3s n’a pas été déployé sur cette VM mono-hôte. Il n’était pas nécessaire à l’architecture Compose retenue. Le code Raspberry Pi 4, OpenCV/Python et les sources React séparées ne figuraient pas dans le dépôt reçu.
+L’environnement utilise GitHub Actions, Git, Docker Compose, Nginx, Node.js, Express, MongoDB, Prometheus, Grafana, Elasticsearch, Logstash et Kibana pour la plateforme SmartBus existante. K3s v1.36.5+k3s1 a été installé sur la VM comme cluster Kubernetes mono-nœud séparé. Le nœud est `Ready`; CoreDNS, le provisionneur local de volumes et metrics-server sont `Ready`. Traefik et ServiceLB sont désactivés afin de préserver les ports Nginx. Le port API 6443 est filtré par la politique UFW entrante par défaut; l’administration se fait depuis la VM par SSH avec `sudo kubectl`. L’application SmartBus reste déployée sur Compose et n’est pas dupliquée dans le cluster. Le code Raspberry Pi 4, OpenCV/Python et les sources React séparées ne figuraient pas dans le dépôt reçu.
 
 ## 6. Phase 8 — résultats d’acceptation
 
@@ -54,6 +54,7 @@ L’environnement installé utilise GitHub Actions, Git, Docker Compose, Nginx, 
 | Prometheus | 4/4 cibles `UP`; 6 règles chargées; santé HTTPS HTTP 200 |
 | Grafana | API HTTPS HTTP 200; tableau SmartBus Overview provisionné |
 | ELK | cluster Elasticsearch `green`, Kibana HTTPS HTTP 200; index `smartbus-app-*` reçoit les événements de démarrage |
+| K3s | service actif, nœud mono-hôte `Ready`, trois pods système `Ready`; API non exposée par UFW |
 | Réseau | UFW actif; seuls Nginx 80/443 sont exposés aux clients; Grafana et Prometheus sont liés à localhost; MongoDB, Elasticsearch, cAdvisor et node-exporter ne publient pas de port hôte |
 | Données et secrets | volume MongoDB, fichier `.env` et sauvegardes VM conservés; aucun secret ajouté au dépôt |
 

@@ -23,11 +23,11 @@ The repository contains the existing web/API application, MongoDB Compose config
 
 ## Phase 7 - technology inventory
 
-This deployed repository uses GitHub Actions, Git, Docker Compose, Nginx, Node.js, Express, MongoDB, Prometheus, Grafana, Elasticsearch, Logstash, and Kibana. K3s/Kubernetes remains optional for the single-VM requirement and is not installed. Raspberry Pi 4, OpenCV/Python, and standalone React source were not included in the supplied backend repository; they remain external project components.
+The VM uses GitHub Actions, Git, Docker Compose, Nginx, Node.js, Express, MongoDB, Prometheus, Grafana, Elasticsearch, Logstash, and Kibana for the live SmartBus application. K3s v1.36.5+k3s1 is also installed as a separate single-node Kubernetes cluster. Its node is Ready and its CoreDNS, local-path provisioner, and metrics-server system pods are Ready. Traefik and ServiceLB are disabled to avoid competing with the existing Nginx ingress. K3s API port 6443 listens on the VM, while UFW's default deny policy blocks external access; administer it locally with `sudo kubectl` over SSH. The SmartBus application is not duplicated into Kubernetes and continues to run on Compose. Raspberry Pi 4, OpenCV/Python, and standalone React source were not included in the supplied backend repository; they remain external project components.
 
 ## Phase 8 - operational acceptance
 
-Before accepting a release, confirm that the CI validation and deploy jobs pass, the backend is healthy through HTTPS, MongoDB data is unchanged, Prometheus targets are up, the dashboard loads, log events appear in Kibana, and only allowed ports are reachable. Review memory and disk after ELK starts; limits and seven-day retention keep the stack bounded on the VM.
+Before accepting a release, confirm that the CI validation and deploy jobs pass, the backend is healthy through HTTPS, MongoDB data is unchanged, Prometheus targets are up, the dashboard loads, log events appear in Kibana, K3s reports its node and system pods Ready, and only allowed ports are reachable. Review memory and disk after ELK and K3s start; limits and seven-day retention keep the stack bounded on the VM. The VM currently has approximately 3.5 GiB free disk, so monitor capacity before adding Kubernetes workloads or increasing log retention.
 
 ### Routine checks
 
@@ -38,6 +38,9 @@ docker stats --no-stream
 curl -kfsS https://127.0.0.1/health
 curl -kfsS https://127.0.0.1/prometheus/-/healthy
 sudo ufw status verbose
+sudo systemctl status k3s --no-pager
+sudo kubectl get nodes -o wide
+sudo kubectl get pods -A
 ```
 
 The `-k` option is for local command-line checks before importing the local CA. Browser users should trust `SmartBus-Local-CA.crt`.

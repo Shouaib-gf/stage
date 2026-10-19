@@ -16,6 +16,7 @@ flowchart LR
   Web -->|structured application events| Logstash
   Logstash --> Elasticsearch
   Kibana --> Elasticsearch
+  K3s[K3s single-node cluster, separate from Compose]
 ```
 
 ## Run and validate
@@ -70,6 +71,6 @@ The workflow is published and has completed successfully on the VM runner. A rol
 - Nginx applies TLS 1.2/1.3, HSTS, security headers, and login rate limiting.
 - The VM has 3.3 GiB RAM. Elasticsearch, Logstash, and Kibana use explicit memory limits and a seven-day index retention policy; host Docker logs are rotated at 10 MB x 3 per container.
 - MongoDB is authenticated, has no host-published port, and uses its existing persistent volume. Never run `docker compose down -v` on the VM.
-- Kubernetes/K3s is listed as an optional technology in the supplied requirements; this single-host Compose installation remains the deployed architecture.
+- K3s v1.36.5+k3s1 is installed on the Ubuntu VM as a separate single-node Kubernetes cluster. The SmartBus production services remain on Compose; the K3s cluster is ready for Kubernetes workloads but does not duplicate or replace the live application.
 
 See [the technical operations guide](docs/technical-guide.md), [the user guide](docs/user-guide.md), and [the internship report](docs/rapport-de-stage-devops.md).
