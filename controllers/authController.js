@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { getJwtSecret } = require('../config/security');
 
 
 
@@ -65,46 +66,58 @@ const router = express.Router();
  *       500:
  *         description: Internal server error
  */
-const session = async (req, res) => {
+function createSessionHandler({
+    UserModel = User,
+    comparePassword = bcrypt.compare,
+    signToken = jwt.sign,
+    getSecret = getJwtSecret,
+} = {}) {
+    return async (req, res) => {
+        try {
+            const user = await UserModel.findOne({ email: req.body.email });
 
-    try {
-        const user = await User.findOne({ email: req.body.email });
-
-        if (!user) {
-            return res.status(400).json({ message: 'User does not exist! ' });
-        }
-        const isEqual = await bcrypt.compare(req.body.password, user.password);
-        if (!isEqual) {
-            return res.status(400).json({ message: 'Password is incorrect! ' });
-        }
-
-        const token = jwt.sign(
-            { userId: user.id, email: user.email, role: user.role, myadmin: user.myadmin,  passwordtracking: user.passwordtracking, agencies: user.agencies },
-            'secretkey',
-            {
-                expiresIn: '1d',
+            if (!user) {
+                return res.status(400).json({ message: 'User does not exist! ' });
             }
-        );
-        const expiresIn = JSON.parse(
-            Buffer.from(token.split('.')[1], 'base64').toString('ascii')
-        ).exp;
-    
-        return res.status(200).json({
-            _id: user._id,
-            username: user.username,
-            role: user.role,
-            email: user.email,
-            myadmin: user.myadmin,
-        
-            agencies: user.agencies,
-            token: {
-                data: token,
-                expiresIn,
-            },
-        });
-    } catch (error) {
-        return res.status(400).json({ message: error.message });
-    }
-};
+            const isEqual = await comparePassword(req.body.password, user.password);
+            if (!isEqual) {
+                return res.status(400).json({ message: 'Password is incorrect! ' });
+            }
 
-module.exports = { session, };
+            const token = signToken(
+                {
+                    userId: user.id,
+                    email: user.email,
+                    role: user.role,
+                    myadmin: user.myadmin,
+                    passwordtracking: user.passwordtracking,
+                    agencies: user.agencies,
+                },
+                getSecret(),
+                { expiresIn: '1d' },
+            );
+            const expiresIn = JSON.parse(
+                Buffer.from(token.split('.')[1], 'base64').toString('ascii'),
+            ).exp;
+
+            return res.status(200).json({
+                _id: user._id,
+                username: user.username,
+                role: user.role,
+                email: user.email,
+                myadmin: user.myadmin,
+                agencies: user.agencies,
+                token: {
+                    data: token,
+                    expiresIn,
+                },
+            });
+        } catch (error) {
+            return res.status(400).json({ message: error.message });
+        }
+    };
+}
+
+const session = createSessionHandler();
+
+module.exports = { session, createSessionHandler };

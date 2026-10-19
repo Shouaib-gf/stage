@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: SmartBus
+    orgId: 1
+    folder: SmartBus
+    type: file
+    disableDeletion: true
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

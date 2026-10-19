@@ -1,12 +1,12 @@
 const User = require('../models/User');
 
-const createDefaultSuperAdmin = async () => {
+const createDefaultSuperAdmin = async ({ UserModel = User } = {}) => {
     try {
-        const existingSuperAdmin = await User.findOne({ role: 'superadmin' });
+        const existingSuperAdmin = await UserModel.findOne({ role: 'superadmin' });
         if (!existingSuperAdmin) {
            // const hashedPassword = await bcrypt.hash('HbB6yq+R+U', 12); // Mot de passe par défaut sécurisé
 
-            await User.create({
+            await UserModel.create({
                 username: 'Super Admin',
                 email: 'service.info@emkamed.tn',
                 myadmin:'service.info@emkamed.tn',
@@ -21,6 +21,7 @@ const createDefaultSuperAdmin = async () => {
         }
     } catch (error) {
         console.error('❌ Erreur lors de la création du Super Admin :', error.message);
+        throw error;
     }
 };
 

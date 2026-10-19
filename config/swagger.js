@@ -11,8 +11,8 @@ const swaggerDefinition = {
     },
     servers: [
         {
-            url: 'https://smartbus.emkatech.tn',
-            description: 'Serveur local'
+            url: process.env.SWAGGER_SERVER_URL || '/',
+            description: 'Déploiement SmartBus courant'
         }
     ],
     components: {

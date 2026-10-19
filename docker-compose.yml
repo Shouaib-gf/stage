@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   nginx:
     image: nginx:latest
@@ -24,13 +22,15 @@ services:
       - mongo_data:/data/db
 
   web:
+    image: ${SMARTBUS_IMAGE:-smartbusbackend-web}
     build: .
     container_name: web-1
     restart: unless-stopped
     depends_on:
       - mongo
     environment:
-      - MONGO_URI=mongodb://mongo:27017/iptsdb
+      MONGO_URI: ${MONGO_URI:?Set MONGO_URI in the untracked .env file}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the untracked .env file}
     ports:
       - "80:80"
       - "443:443"
@@ -43,6 +43,7 @@ services:
       - "9090:9090"
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
 
   grafana:
     image: grafana/grafana-oss:latest
@@ -54,6 +55,8 @@ services:
       - prometheus
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
 
   node-exporter:
     image: prom/node-exporter:latest

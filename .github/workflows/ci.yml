@@ -2,17 +2,19 @@ name: SmartBus CI-CD
 
 on:
   push:
-    branches:
-      - devops
+    branches: [devops]
   pull_request:
-    branches:
-      - devops
+    branches: [devops]
   workflow_dispatch:
 
+concurrency:
+  group: smartbus-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  validate-build:
-    # Build on pushes and pull requests, but deploy only on pushes to devops.
-    runs-on: self-hosted
+  validate:
+    # Pull request code runs on an ephemeral GitHub-hosted runner, never on the VM.
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -20,39 +22,103 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
       - name: Check JavaScript syntax
-        run: node --check server.js
+        run: node --check server.js && node --check app.js
+
+      - name: Run automated tests
+        run: npm test
 
       - name: Build Docker image
-        run: docker build -t smartbusbackend:${{ github.sha }} .
+        run: docker build -t smartbusbackend:validation .
 
-      - name: Deploy to local Compose environment
-        if: github.event_name != 'pull_request'
+  deploy:
+    needs: validate
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/devops'
+    runs-on: self-hosted
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build immutable commit image
         env:
           IMAGE_TAG: ${{ github.sha }}
+        run: docker build -t "smartbusbackend:${IMAGE_TAG}" .
+
+      - name: Deploy backend with health check and rollback
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        shell: bash
         run: |
-          set -eu
+          set -Eeuo pipefail
           cd /home/shouaib/smartBusBackend
 
-          docker image inspect "smartbusbackend:${IMAGE_TAG}" >/dev/null
+          image="smartbusbackend:${IMAGE_TAG}"
+          docker image inspect "$image" >/dev/null
 
-          SMARTBUS_IMAGE="smartbusbackend:${IMAGE_TAG}" \
-            docker compose up -d --no-deps --no-build web
+          # Preserve the exact currently running image before replacing web.
+          previous_image="$(docker inspect --format '{{.Config.Image}}' web-1)"
+          if [[ -z "$previous_image" ]]; then
+            echo "Cannot identify the current web image; refusing deployment."
+            exit 1
+          fi
+          docker image inspect "$previous_image" >/dev/null
+          echo "Current backend image: $previous_image"
 
-          for attempt in $(seq 1 12); do
-            if curl --fail --silent --show-error http://127.0.0.1/ >/dev/null &&
-               curl --fail --silent --show-error http://127.0.0.1/api-docs/ >/dev/null; then
-              echo "Deployment successful: homepage and API docs respond."
-              exit 0
+          if ! SMARTBUS_IMAGE="$image" docker compose up -d --no-deps --no-build web; then
+            echo "Compose failed to start the new backend; restoring $previous_image."
+            SMARTBUS_IMAGE="$previous_image" docker compose up -d --no-deps --no-build web
+            exit 1
+          fi
+
+          healthy=false
+          for attempt in $(seq 1 18); do
+            if curl --fail --silent http://127.0.0.1/health | grep --quiet -E '"status"[[:space:]]*:[[:space:]]*"ok".*"database"[[:space:]]*:[[:space:]]*"connected"' &&
+               curl --fail --silent http://127.0.0.1/ >/dev/null &&
+               curl --fail --silent http://127.0.0.1/api-docs/ >/dev/null &&
+               curl --fail --silent http://127.0.0.1:8081/health | grep --quiet -E '"status"[[:space:]]*:[[:space:]]*"ok".*"database"[[:space:]]*:[[:space:]]*"connected"' &&
+               curl --fail --silent http://127.0.0.1:8081/ >/dev/null &&
+               curl --fail --silent http://127.0.0.1:8081/api-docs/ >/dev/null; then
+              healthy=true
+              break
             fi
             sleep 5
           done
 
-          echo "Deployment health check failed."
-          docker logs --tail 80 web-1
+          if [[ "$healthy" == true ]]; then
+            echo "Deployment healthy: /health, homepage, and /api-docs/ returned success."
+            exit 0
+          fi
+
+          echo "New backend failed health checks; recent logs follow."
+          docker inspect --format 'Container state={{.State.Status}} exit_code={{.State.ExitCode}} image={{.Config.Image}}' web-1 || true
+          echo "Container logs are omitted from the Actions output to protect database and authentication details."
+          echo "Rolling back to $previous_image."
+          SMARTBUS_IMAGE="$previous_image" docker compose up -d --no-deps --no-build web
+
+          rollback_healthy=false
+          for attempt in $(seq 1 12); do
+            if curl --fail --silent http://127.0.0.1/health | grep --quiet -E '"status"[[:space:]]*:[[:space:]]*"ok".*"database"[[:space:]]*:[[:space:]]*"connected"' &&
+               curl --fail --silent http://127.0.0.1/ >/dev/null &&
+               curl --fail --silent http://127.0.0.1/api-docs/ >/dev/null &&
+               curl --fail --silent http://127.0.0.1:8081/health | grep --quiet -E '"status"[[:space:]]*:[[:space:]]*"ok".*"database"[[:space:]]*:[[:space:]]*"connected"' &&
+               curl --fail --silent http://127.0.0.1:8081/ >/dev/null &&
+               curl --fail --silent http://127.0.0.1:8081/api-docs/ >/dev/null; then
+              rollback_healthy=true
+              break
+            fi
+            sleep 5
+          done
+
+          if [[ "$rollback_healthy" == true ]]; then
+            echo "Rollback restored the previous healthy backend."
+          else
+            echo "Rollback was attempted, but the previous backend did not pass health checks."
+            docker inspect --format 'Container state={{.State.Status}} exit_code={{.State.ExitCode}} image={{.Config.Image}}' web-1 || true
+          fi
           exit 1
