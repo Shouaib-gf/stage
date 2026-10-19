@@ -2,7 +2,7 @@
 
 ## Acceder a la plateforme
 
-Ouvrir `https://192.168.43.129/`. Le certificat est signe par l'autorite locale SmartBus. Importer le fichier `tls/SmartBus-Local-CA.crt` dans les certificats racine de l'utilisateur Windows pour eviter l'avertissement du navigateur. Cette adresse est valable tant que la VM garde la meme adresse IP.
+Ouvrir `https://192.168.43.129/`. Le certificat est signe par l'autorite locale SmartBus. Importer le fichier `docs/tls/SmartBus-Local-CA.crt` dans les certificats racine de l'utilisateur Windows pour eviter l'avertissement du navigateur. Cette adresse est valable tant que la VM garde la meme adresse IP.
 
 Les identifiants de l'application sont les comptes SmartBus existants. Utiliser l'adresse courriel et le mot de passe deja associes au compte; aucun compte MongoDB ni secret JWT ne doit etre saisi dans le navigateur. Le role Super Admin donne acces aux fonctions d'administration. Les roles admin et parent gardent les droits definis par l'application.
 
