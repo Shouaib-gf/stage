@@ -1,8 +1,9 @@
-const mongoose = require('mongoose');
+﻿const mongoose = require('mongoose');
 const express = require('express');
 const cors = require('cors');
 
 const dotenv = require('dotenv');
+const { logEvent } = require('./safeLogger');
 dotenv.config(); // Charge les variables d'environnement
 const app = express();
 app.use(cors());
@@ -14,18 +15,18 @@ const connectDB = async () => {
      useUnifiedTopology: true,
    })
    .then(() => {
-     console.log("Connected to MongoDB");
+     logEvent('info', 'mongodb_connected');
    
      // Listen on port 80 for HTTP server
     const PORT = process.env.PORT || 80;
-    const server = app.listen(PORT, () => {
-      console.log(`Server started at port ${PORT}`);
+    app.listen(PORT, () => {
+      logEvent('info', 'http_server_started');
      });
    
     
    })
-   .catch((error) => {
-     console.log("MongoDB connection error:", error);
+   .catch(() => {
+     logEvent('error', 'mongodb_connection_failed');
    });
 };
 

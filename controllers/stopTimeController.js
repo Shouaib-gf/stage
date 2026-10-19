@@ -352,7 +352,6 @@ const deleteStopTime = async (req, res) => {
  */
 const getStopTimesByTrip = async (req, res) => {
   const { tripId } = req.params;
-console.log("TRIP_ID::",tripId);
   try {
       // Find StopTimes by trip ID and populate related data
       const stopTimes = await StopTime.find({ trip: tripId })

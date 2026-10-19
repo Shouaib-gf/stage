@@ -1,10 +1,10 @@
-const dotenv = require('dotenv');
+﻿const dotenv = require('dotenv');
+dotenv.config({ path: './.env' });
 const mongoose = require('mongoose');
 const { createApp } = require('./app');
 const createDefaultSuperAdmin = require('./config/defaultAdmin');
 const { getJwtSecret } = require('./config/security');
-
-dotenv.config({ path: './.env' });
+const { logEvent } = require('./config/safeLogger');
 
 async function startServer({
   mongoUri = process.env.MONGO_URI,
@@ -21,7 +21,7 @@ async function startServer({
 
   mongoose.set('strictQuery', false);
   await connect(mongoUri);
-  console.log('Connected to MongoDB');
+  logEvent('info', 'mongodb_connected');
 
   // User uses Mongoose's default connection, so the Super Admin lookup reuses
   // the same authenticated connection established above.
@@ -29,13 +29,13 @@ async function startServer({
 
   const app = appFactory();
   return app.listen(port, () => {
-    console.log(`Server started at port ${port}`);
+    logEvent('info', 'http_server_started');
   });
 }
 
 if (require.main === module) {
-  startServer().catch((error) => {
-    console.error('SmartBus startup failed:', error.message);
+  startServer().catch(() => {
+    logEvent('error', 'startup_failed');
     process.exitCode = 1;
   });
 }

@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const { logEvent } = require('./safeLogger');
 
 const createDefaultSuperAdmin = async ({ UserModel = User } = {}) => {
     try {
@@ -15,12 +16,12 @@ const createDefaultSuperAdmin = async ({ UserModel = User } = {}) => {
                 agencies: [] 
             });
 
-            console.log('✅ Compte Super Admin créé avec succès.');
+            logEvent('info', 'default_super_admin_created');
         } else {
-            console.log('✅ Compte Super Admin existe déjà.');
+            logEvent('info', 'default_super_admin_exists');
         }
     } catch (error) {
-        console.error('❌ Erreur lors de la création du Super Admin :', error.message);
+        logEvent('error', 'default_super_admin_initialization_failed');
         throw error;
     }
 };

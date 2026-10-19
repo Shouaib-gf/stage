@@ -6,14 +6,14 @@ const {
   updateVehicle,
   deleteVehicle
 } = require('../controllers/vehicleController');
-const { protect, isSuperAdmin, isSuperOrAdmin, isAdmin } = require('../middleware/authMiddleware');
+const { protect, isSuperOrAdmin } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
-router.get('/', getAllVehicles);
-router.get('/:id', getVehicleById); // ✅ Corrected line
-router.post('/', createVehicle);
-router.put('/:id', updateVehicle);
-router.delete('/:id', deleteVehicle);
+router.get('/', protect, getAllVehicles);
+router.get('/:id', protect, getVehicleById); // ✅ Corrected line
+router.post('/', protect, isSuperOrAdmin, createVehicle);
+router.put('/:id', protect, isSuperOrAdmin, updateVehicle);
+router.delete('/:id', protect, isSuperOrAdmin, deleteVehicle);
 
 module.exports = router;

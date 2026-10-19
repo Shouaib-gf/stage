@@ -1,4 +1,3 @@
-const express = require('express');
 const User = require('../models/User');
 const Agency = require('../models/Agency');
 const Route = require ('../models/Route');
@@ -47,7 +46,6 @@ const Trip = require('../models/Trip');
 
 const assignAgencyToAdmin = async (req, res) => {
     const { userId, agencyId } = req.body;
-    console.log(userId);
 
     try {
         if (req.user.role !== 'superadmin') {
@@ -66,7 +64,6 @@ const assignAgencyToAdmin = async (req, res) => {
         if (user.agencies.length === 0) {
             user.agencies.push(agencyId);
         } else {
-            console.log(user.agencies);
             return res.status(400).json({ message: 'Cet utilisateur a déjà une agence assignée' });
         }
 

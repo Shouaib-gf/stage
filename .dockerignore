@@ -9,10 +9,12 @@ npm-debug.log*
 coverage
 test
 /data
+/logs
 docker-compose*.backup
 docker-compose*.pre-*
 *.log
 *.pem
 *.key
+/tls
 *backup*
 *pre-cd-*

@@ -19,6 +19,15 @@ groups:
           summary: Host CPU use is above 85 percent
           description: SmartBus host CPU use has remained above 85 percent for five minutes.
 
+      - alert: SmartBusHostLowMemory
+        expr: 100 * node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Host available memory is below 10 percent
+          description: Less than 10 percent of host memory has remained available for five minutes.
+
       - alert: SmartBusHostLowDiskSpace
         expr: 100 * (1 - node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) > 90
         for: 5m
@@ -27,3 +36,21 @@ groups:
         annotations:
           summary: SmartBus host disk use is above 90 percent
           description: Root filesystem use has remained above 90 percent for five minutes.
+
+      - alert: SmartBusNodeExporterUnavailable
+        expr: up{job="node-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Host metrics are unavailable
+          description: Prometheus cannot scrape node-exporter.
+
+      - alert: SmartBusContainerMetricsUnavailable
+        expr: up{job="cadvisor"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Container metrics are unavailable
+          description: Prometheus cannot scrape cAdvisor.

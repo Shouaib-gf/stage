@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { getJwtSecret } = require('../config/security');
+const { logEvent } = require('../config/safeLogger');
 
 
 const protect = async (req, res, next) => {
@@ -21,8 +22,8 @@ const protect = async (req, res, next) => {
             }
 
             next();
-        } catch (error) {
-            console.error(error);
+        } catch {
+            logEvent('warn', 'jwt_authentication_failed');
             return res.status(401).json({ message: 'Non autorisé, token invalide' });
         }
     } else {

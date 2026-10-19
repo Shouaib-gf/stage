@@ -34,6 +34,15 @@ jobs:
       - name: Run automated tests
         run: npm test
 
+      - name: Run code quality analysis
+        run: npm run lint
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=moderate
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=moderate
+
       - name: Build Docker image
         run: docker build -t smartbusbackend:validation .
 
@@ -78,12 +87,9 @@ jobs:
 
           healthy=false
           for attempt in $(seq 1 18); do
-            if curl --fail --silent http://127.0.0.1/health | grep --quiet -E '"status"[[:space:]]*:[[:space:]]*"ok".*"database"[[:space:]]*:[[:space:]]*"connected"' &&
-               curl --fail --silent http://127.0.0.1/ >/dev/null &&
-               curl --fail --silent http://127.0.0.1/api-docs/ >/dev/null &&
-               curl --fail --silent http://127.0.0.1:8081/health | grep --quiet -E '"status"[[:space:]]*:[[:space:]]*"ok".*"database"[[:space:]]*:[[:space:]]*"connected"' &&
-               curl --fail --silent http://127.0.0.1:8081/ >/dev/null &&
-               curl --fail --silent http://127.0.0.1:8081/api-docs/ >/dev/null; then
+            if curl --fail --silent --insecure https://127.0.0.1/health | grep --quiet -E '"status"[[:space:]]*:[[:space:]]*"ok".*"database"[[:space:]]*:[[:space:]]*"connected"' &&
+               curl --fail --silent --insecure https://127.0.0.1/ >/dev/null &&
+               curl --fail --silent --insecure https://127.0.0.1/api-docs/ >/dev/null; then
               healthy=true
               break
             fi
@@ -91,7 +97,7 @@ jobs:
           done
 
           if [[ "$healthy" == true ]]; then
-            echo "Deployment healthy: /health, homepage, and /api-docs/ returned success."
+          echo "Deployment healthy: HTTPS /health, homepage, and /api-docs/ returned success."
             exit 0
           fi
 
@@ -103,12 +109,9 @@ jobs:
 
           rollback_healthy=false
           for attempt in $(seq 1 12); do
-            if curl --fail --silent http://127.0.0.1/health | grep --quiet -E '"status"[[:space:]]*:[[:space:]]*"ok".*"database"[[:space:]]*:[[:space:]]*"connected"' &&
-               curl --fail --silent http://127.0.0.1/ >/dev/null &&
-               curl --fail --silent http://127.0.0.1/api-docs/ >/dev/null &&
-               curl --fail --silent http://127.0.0.1:8081/health | grep --quiet -E '"status"[[:space:]]*:[[:space:]]*"ok".*"database"[[:space:]]*:[[:space:]]*"connected"' &&
-               curl --fail --silent http://127.0.0.1:8081/ >/dev/null &&
-               curl --fail --silent http://127.0.0.1:8081/api-docs/ >/dev/null; then
+            if curl --fail --silent --insecure https://127.0.0.1/health | grep --quiet -E '"status"[[:space:]]*:[[:space:]]*"ok".*"database"[[:space:]]*:[[:space:]]*"connected"' &&
+               curl --fail --silent --insecure https://127.0.0.1/ >/dev/null &&
+               curl --fail --silent --insecure https://127.0.0.1/api-docs/ >/dev/null; then
               rollback_healthy=true
               break
             fi
