@@ -13,7 +13,6 @@ const { createApp } = require('../app');
 test('vehicle endpoints require authentication and administrative roles for writes', async () => {
   const app = createApp({ isDatabaseReady: () => true });
   const checks = [
-    request(app).get('/useragences?userId=507f1f77bcf86cd799439011'),
     request(app).get('/api/vehicles'),
     request(app).get('/api/vehicles/507f1f77bcf86cd799439011'),
     request(app).post('/api/vehicles').send({}),

@@ -73,7 +73,6 @@ function createApp({ isDatabaseReady = () => mongoose.connection.readyState === 
   app.use('/api-docs', swaggerUI.serve, swaggerUI.setup(swaggerSpec));
 
   app.use('/api/session', require('./routes/authRoutes'));
-  app.use('/useragences', require('./routes/userAgencyRoutes'));
   app.use('/api/users', require('./routes/userRoutes'));
   app.use('/api/agencies', require('./routes/agencyRoutes.js'));
   app.use('/api/routes', require('./routes/routeRoutes'));
