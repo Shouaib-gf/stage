@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smartbus-backend
+  namespace: smartbus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: smartbus-backend
+  template:
+    metadata:
+      labels:
+        app: smartbus-backend
+    spec:
+      containers:
+        - name: backend
+          image: docker.io/library/smartbusbackend:e1449cd0780f5e513a4fe4ec9962cb1a20ff1bbb
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+          env:
+            - name: PORT
+              value: "80"
+            - name: NODE_ENV
+              value: production
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: smartbus-backend-secrets
+                  key: MONGO_URI
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: smartbus-backend-secrets
+                  key: JWT_SECRET
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: smartbus-backend
+  namespace: smartbus
+spec:
+  type: ClusterIP
+  selector:
+    app: smartbus-backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

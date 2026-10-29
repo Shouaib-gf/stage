@@ -1,0 +1,195 @@
+name: SmartBus K3s Deploy
+
+on:
+  push:
+    branches:
+      - k3s-deployment-test
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smartbus-k3s-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-k3s:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build, deploy, verify, and rollback if needed
+        shell: bash
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+
+          namespace="smartbus"
+          deployment="smartbus-backend"
+          container="backend"
+          service="smartbus-backend"
+          image="docker.io/library/smartbusbackend:${IMAGE_TAG}"
+          archive="$(mktemp /tmp/smartbus-k3s-image.XXXXXX.tar)"
+          health_port=18081
+          forward_pid=""
+          forward_log=""
+          health_file=""
+
+          cleanup() {
+            if [[ -n "${forward_pid}" ]]; then
+              kill "${forward_pid}" 2>/dev/null || true
+              wait "${forward_pid}" 2>/dev/null || true
+              forward_pid=""
+            fi
+
+            [[ -z "${archive}" ]] || rm -f "${archive}"
+            [[ -z "${forward_log}" ]] || rm -f "${forward_log}"
+            [[ -z "${health_file}" ]] || rm -f "${health_file}"
+          }
+          trap cleanup EXIT
+
+          # Read the currently deployed image before changing anything.
+          previous_image="$(
+            sudo -n k3s kubectl get deployment "${deployment}" \
+              -n "${namespace}" \
+              -o jsonpath='{.spec.template.spec.containers[?(@.name=="backend")].image}'
+          )"
+
+          if [[ -z "${previous_image}" ]]; then
+            echo "Cannot determine the previous image; refusing deployment."
+            exit 1
+          fi
+
+          echo "Previous image: ${previous_image}"
+          echo "Building image: ${image}"
+
+          # Build from the exact commit checked out by GitHub Actions.
+          docker build -t "${image}" .
+
+          echo "Importing image into K3s containerd"
+          docker save "${image}" -o "${archive}"
+          sudo -n k3s ctr images import "${archive}"
+          rm -f "${archive}"
+          archive=""
+
+          # Check the application through its ClusterIP Service.
+          # Each check starts a fresh port-forward so it can select
+          # the currently available backend pod after a rollout.
+          wait_for_health() {
+            local attempt
+            local healthy=false
+
+            forward_log="$(mktemp)"
+            health_file="$(mktemp)"
+
+            sudo -n k3s kubectl port-forward \
+              --address 127.0.0.1 \
+              -n "${namespace}" \
+              "service/${service}" \
+              "${health_port}:80" >"${forward_log}" 2>&1 &
+            forward_pid=$!
+
+            for attempt in $(seq 1 20); do
+              if curl --fail --silent \
+                --max-time 3 \
+                "http://127.0.0.1:${health_port}/health" \
+                -o "${health_file}" 2>/dev/null &&
+                python3 - "${health_file}" <<'PY'
+          import json
+          import sys
+
+          try:
+              with open(sys.argv[1], encoding="utf-8") as f:
+                  data = json.load(f)
+              ok = (
+                  data.get("status") == "ok"
+                  and data.get("database") == "connected"
+              )
+          except (OSError, ValueError):
+              ok = False
+
+          sys.exit(0 if ok else 1)
+          PY
+              then
+                healthy=true
+                break
+              fi
+
+              # Stop retrying if port-forward has exited.
+              if ! kill -0 "${forward_pid}" 2>/dev/null; then
+                break
+              fi
+
+              sleep 3
+            done
+
+            # Stop the tunnel before a possible rollback or another check.
+            kill "${forward_pid}" 2>/dev/null || true
+            wait "${forward_pid}" 2>/dev/null || true
+            forward_pid=""
+            rm -f "${forward_log}" "${health_file}"
+            forward_log=""
+            health_file=""
+
+            [[ "${healthy}" == true ]]
+          }
+
+          rollback() {
+            echo "Rolling back to: ${previous_image}"
+
+            if ! sudo -n k3s kubectl set image \
+              "deployment/${deployment}" \
+              "${container}=${previous_image}" \
+              -n "${namespace}"; then
+              echo "ERROR: Could not set the previous image."
+              return 1
+            fi
+
+            if ! sudo -n k3s kubectl rollout status \
+              "deployment/${deployment}" \
+              -n "${namespace}" --timeout=180s; then
+              echo "ERROR: Rollback rollout did not complete."
+              return 1
+            fi
+
+            if ! wait_for_health; then
+              echo "ERROR: Previous image was restored, but its health check failed."
+              return 1
+            fi
+
+            echo "Rollback completed and the previous backend passed its health check."
+          }
+
+          echo "Updating Kubernetes Deployment"
+
+          if ! sudo -n k3s kubectl set image \
+            "deployment/${deployment}" \
+            "${container}=${image}" \
+            -n "${namespace}"; then
+            echo "ERROR: Failed to update the Deployment."
+            exit 1
+          fi
+
+          if ! sudo -n k3s kubectl rollout status \
+            "deployment/${deployment}" \
+            -n "${namespace}" --timeout=180s; then
+            echo "ERROR: New Deployment rollout failed."
+            rollback || echo "CRITICAL: Rollback needs manual inspection."
+            exit 1
+          fi
+
+          echo "Checking application and database health"
+
+          if ! wait_for_health; then
+            echo "ERROR: New backend failed its health check."
+            rollback || echo "CRITICAL: Rollback needs manual inspection."
+            exit 1
+          fi
+
+          echo "K3s deployment succeeded."
+          echo "Image: ${image}"
+          echo "Rollout and database-aware health check passed."
