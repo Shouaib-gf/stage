@@ -14,13 +14,13 @@ concurrency:
 jobs:
   validate:
     # Pull request code runs on an ephemeral GitHub-hosted runner, never on the VM.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -52,7 +52,7 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build immutable commit image
         env:
